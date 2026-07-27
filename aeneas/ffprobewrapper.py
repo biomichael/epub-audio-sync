@@ -35,6 +35,7 @@ from __future__ import absolute_import
 from __future__ import print_function
 import re
 import subprocess
+import locale
 
 from aeneas.exacttiming import TimeValue
 from aeneas.logger import Loggable
@@ -152,6 +153,21 @@ class FFPROBEWrapper(Loggable):
 
     TAG = u"FFPROBEWrapper"
 
+    @staticmethod
+    def _decode_output(data):
+        if data is None:
+            return u""
+        if not isinstance(data, bytes):
+            return gf.safe_unicode(data)
+        for encoding in ("utf-8", locale.getpreferredencoding(False) or "", "cp1252", "latin-1"):
+            if not encoding:
+                continue
+            try:
+                return data.decode(encoding)
+            except UnicodeDecodeError:
+                continue
+        return data.decode("utf-8", errors="replace")
+
     def read_properties(self, audio_file_path):
         """
         Read the properties of an audio file
@@ -238,11 +254,8 @@ class FFPROBEWrapper(Loggable):
             self.log_exc(u"ffprobe produced no output", None, True, FFPROBEParsingError)
 
         # decode stdoutdata and stderrdata to Unicode string
-        try:
-            stdoutdata = gf.safe_unicode(stdoutdata)
-            stderrdata = gf.safe_unicode(stderrdata)
-        except UnicodeDecodeError as exc:
-            self.log_exc(u"Unable to decode ffprobe out/err", exc, True, FFPROBEParsingError)
+        stdoutdata = self._decode_output(stdoutdata)
+        stderrdata = self._decode_output(stderrdata)
 
         # dictionary for the results
         results = {

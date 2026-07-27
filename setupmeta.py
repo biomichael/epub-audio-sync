@@ -54,8 +54,10 @@ PKG_VERSION = "1.7.3.0"
 # NOTE: this list should be the same as requirements.txt
 PKG_INSTALL_REQUIRES = [
     "BeautifulSoup4>=4.5.1",
+    "fastapi>=0.110.0",
     "lxml>=3.6.0",
-    "numpy>=1.9"
+    "numpy>=1.9",
+    "uvicorn>=0.30.0"
 ]
 
 # required packages to install extra tools
@@ -98,6 +100,7 @@ PKG_PACKAGES = [
     "aeneas.cwave",
     "aeneas.extra",
     "aeneas.syncmap",
+    "aeneas.epubsync",
     "aeneas.tools",
     "aeneas.ttswrappers"
 ]
@@ -141,6 +144,10 @@ PKG_PACKAGE_DATA = {
     "aeneas.syncmap": [
         "*.md"
     ],
+    "aeneas.epubsync": [
+        "*.md",
+        "*.ps1"
+    ],
     "aeneas.tools": [
         "res/*",
         "*.md"
@@ -162,6 +169,7 @@ PKG_SCRIPTS = [
     "bin/aeneas_plot_waveform",
     "bin/aeneas_synthesize_text",
     "bin/aeneas_validate",
+    "bin/epub-audio-sync",
 ]
 
 ##############################################################################

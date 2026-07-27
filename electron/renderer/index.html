@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EPUB Audio Sync Builder</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">EPUB TALKING BOOKS</p>
+        <h1>EPUB Audio Sync Builder</h1>
+        <p class="subtitle">Select files from the top menu, inspect spine chapters, map audio, align, preview, and export from one window.</p>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="card source-card">
+        <div class="card-head">
+          <h2>Project</h2>
+          <button id="chooseOutputButton" class="button button-subtle">Choose Output Folder</button>
+        </div>
+        <div class="project-grid">
+          <div class="project-item">
+            <span class="label">EPUB</span>
+            <span id="epubValue" class="value muted">Use File → Add EPUB</span>
+          </div>
+          <div class="project-item">
+            <span class="label">Audio Files</span>
+            <span id="audioCountValue" class="value muted">Use File → Add Audio Files</span>
+          </div>
+          <div class="project-item">
+            <span class="label">Output Folder</span>
+            <span id="outputValue" class="value muted">Choose a folder for exports</span>
+          </div>
+          <div class="project-item">
+          </div>
+          <div class="project-item">
+            <span class="label">Language</span>
+            <input id="languageInput" type="text" value="eng">
+          </div>
+          <div class="project-item">
+            <span class="label">Audio Mode</span>
+            <select id="audioModeSelect">
+              <option value="external">External audio</option>
+              <option value="embedded">Embedded audio</option>
+            </select>
+          </div>
+          <div class="project-item">
+            <span class="label">Alignment Engine</span>
+            <select id="alignmentEngineSelect">
+              <option value="aeneas">aeneas</option>
+              <option value="mfa">MFA</option>
+            </select>
+          </div>
+          <div class="project-item">
+            <span class="label">aeneas Repo</span>
+            <input id="repoPathInput" type="text" value="C:\Projects\aeneas">
+          </div>
+      <div class="hero-actions" style="grid-column: 4;justify-content: flex-end;">
+        <button id="inspectButton" class="button button-solid">Inspect EPUB</button>
+      </div>
+        </div>
+        <div id="warningBanner" class="warning hidden"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>MFA Settings</h2>
+          <p class="muted">Stored now for future MFA support. The current build still runs aeneas.</p>
+        </div>
+        <div class="project-grid">
+          <div class="project-item">
+            <span class="label">MFA Executable</span>
+            <input id="mfaExecutablePathInput" type="text" placeholder="C:\Program Files\MFA\montreal-forced-aligner.exe" value="C:\ProgramData\miniforge3\envs\mfa\Scripts\mfa.exe">
+          </div>
+          <div class="project-item">
+            <span class="label">Acoustic Model</span>
+            <input id="mfaAcousticModelInput" type="text" placeholder="english_us_arpa" value="english_us_arpa">
+          </div>
+          <div class="project-item">
+            <span class="label">Dictionary / Model</span>
+            <input id="mfaDictionaryInput" type="text" placeholder="C:\models\dict.txt or english_us_arpa" value="C:\Users\MZDEV\Documents\MFA\pretrained_models\dictionary\english_us_arpa.dict">
+          </div>
+          <div class="project-item">
+            <span class="label">MFA Output Folder</span>
+            <input id="mfaOutputFolderInput" type="text" placeholder="Uses the build output folder" value="C:\Projects\aeneas\tests">
+          </div>
+          <div class="project-item">
+            <span class="label">Temporary Corpus Folder</span>
+            <input id="mfaCorpusFolderInput" type="text" placeholder="Uses output\mfa-corpus" value="C:\Projects\aeneas\tests">
+          </div>
+          <div class="project-item">
+            <span class="label">Audio Conversion</span>
+            <select id="mfaAudioConversionSelect">
+              <option value="none">No conversion</option>
+              <option value="wav">Convert to WAV</option>
+            </select>
+          </div>
+          <div class="project-item">
+            <span class="label">Proof Mode</span>
+            <label class="inline-toggle">
+              <input id="mfaProofModeInput" type="checkbox">
+              <span>Validate MFA only</span>
+            </label>
+          </div>
+        </div>
+        <div class="build-actions">
+          <button id="testMfaButton" class="button button-subtle">Test MFA Settings</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Chapter Segmentation</h2>
+          <p class="muted">Set sentence or paragraph tagging per XHTML chapter. These settings apply before any alignment assignments are sliced.</p>
+        </div>
+        <div id="chapterConfigEmpty" class="empty-state">No spine chapters loaded yet.</div>
+        <div id="chapterConfigWrap" class="table-wrap hidden">
+          <table>
+            <thead>
+              <tr>
+                <th>Chapter</th>
+                <th>Segment</th>
+              </tr>
+            </thead>
+            <tbody id="chapterConfigBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Alignment Assignments</h2>
+            <p class="muted">Each row maps one audio file to a contiguous range of chapter segments. Reuse the same audio across many chapters, or split one chapter across multiple rows.</p>
+          </div>
+          <button id="addAssignmentButton" class="button button-subtle">Add Assignment</button>
+        </div>
+        <div id="assignmentEmpty" class="empty-state">Inspect an EPUB to create assignment rows.</div>
+        <div id="assignmentWrap" class="table-wrap hidden">
+          <table>
+            <thead>
+              <tr>
+                <th>Audio</th>
+                <th>Start Chapter</th>
+                <th>Start Point</th>
+                <th>Sync</th>
+                <th>End Chapter</th>
+                <th>End Point</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="assignmentBody"></tbody>
+          </table>
+        </div>
+        <div class="build-actions">
+          <button id="runButton" class="button button-solid">Run Build</button>
+        </div>
+      </section>
+
+      <section class="split-layout">
+        <div class="card build-card">
+          <div class="card-head">
+            <h2>Build Activity</h2>
+            <p id="statusText" class="status-pill idle">Idle</p>
+          </div>
+          <textarea id="logBox" readonly></textarea>
+          <div id="exportSummary" class="export-summary muted">Exports will appear here after a successful build.</div>
+        </div>
+
+        <div class="card preview-card">
+          <div class="card-head preview-head">
+            <h2>Preview</h2>
+            <div class="preview-controls">
+              <select id="previewSelect"></select>
+              <button id="previewButton" class="button">Load Preview</button>
+            </div>
+          </div>
+          <audio id="audioPlayer" controls></audio>
+          <div id="previewPane" class="preview-pane">
+            <p class="muted">Run a build and load a preview chapter.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="segmentPickerModal" class="modal-shell hidden">
+    <div class="modal-card">
+      <div class="card-head preview-head">
+        <div>
+          <h2>Pick Alignment Point</h2>
+          <p id="segmentPickerMeta" class="muted">Click a highlighted block to fill the selected field.</p>
+        </div>
+        <button id="closeSegmentPickerButton" class="button button-subtle">Close</button>
+      </div>
+      <div id="segmentPickerPane" class="preview-pane picker-pane">
+        <p class="muted">Load a chapter preview to pick a point.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="errorPopup" class="error-popup hidden" onclick="closeErrorPopup(event)">
+    <div class="error-popup-card">
+      <p id="errorPopupMessage" class="error-popup-message"></p>
+      <button id="errorPopupClose" class="button button-solid">OK</button>
+    </div>
+  </div>
+  <script src="./renderer.js"></script>
+</body>
+</html>

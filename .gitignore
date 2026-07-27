@@ -12,6 +12,19 @@ dist
 docs/build
 tmp
 
+# Generated environments, dependencies, and release artifacts
+node_modules
+venvs
+output
+unpacked
+release
+mfa_env.tar.gz
+__pycache__
+*.egg-info
+/tests/
+english_us_arpa/
+espeak.lib
+
 # service scripts
 zzz
 zzz_*.py
