@@ -11,6 +11,62 @@
 * Quick Links: [Home](http://www.readbeyond.it/aeneas/) - [GitHub](https://github.com/readbeyond/aeneas/) - [PyPI](https://pypi.python.org/pypi/aeneas/) - [Docs](http://www.readbeyond.it/aeneas/docs/) - [Tutorial](http://www.readbeyond.it/aeneas/docs/clitutorial.html) - [Benchmark](https://readbeyond.github.io/aeneas-benchmark/) - [Mailing List](https://groups.google.com/d/forum/aeneas-forced-alignment) - [Web App](http://aeneasweb.org)
 
 
+## EPUB Audio Sync
+
+This repository now includes an EPUB-focused workflow built on top of aeneas. The
+`aeneas.epubsync` package can inspect an EPUB spine, segment XHTML chapters,
+align narration to the selected chapters, and export:
+
+* a patched EPUB with EPUB 3 media overlays (SMIL), when embedded audio is selected;
+* external SMIL/audio references, when audio is kept outside the EPUB;
+* JSON, text, preview, and diagnostic output for downstream tools and review;
+* optional MFA proof/alignment integration alongside the default aeneas engine.
+
+The command-line entry point is `epub-audio-sync`. For example, map one audio
+file to one or more chapters with:
+
+```bash
+python -m aeneas.epubsync.cli \
+  --epub book.epub \
+  --audio chapter01.mp3 chapter02.mp3 \
+  --map OEBPS/Text/chapter01.xhtml=chapter01.mp3 OEBPS/Text/chapter02.xhtml=chapter02.mp3 \
+  --language eng \
+  --out build/epub-audio-sync
+```
+
+Use `--embedded-audio` to copy audio into the output EPUB, or
+`--external-audio` to keep audio in an external assets directory. Use
+`--dump-inspection` to inspect an EPUB without running alignment. The same
+backend can serve the local web interface with `--serve`.
+
+### Electron desktop app
+
+The `electron/` directory contains the **EPUB Audio Sync Builder**, a desktop
+interface for the same workflow. It supports:
+
+* selecting an EPUB, multiple audio files, and an output folder from the File menu;
+* inspecting the EPUB spine and choosing sentence or paragraph segmentation per chapter;
+* assigning audio to chapter ranges and selecting alignment points from previews;
+* aeneas alignment by default, with configurable MFA settings and proof mode;
+* external or embedded audio output, build logs, audio playback, and XHTML preview.
+
+To run the app from a checkout, install the Python dependencies first, then
+install the Electron dependencies and start the desktop app:
+
+```bash
+pip install -r requirements.txt
+npm install
+npm start
+```
+
+The app launches the Python backend with `python -m aeneas.epubsync.desktop_api`
+unless `AENEAS_BACKEND_EXE` points to a packaged backend executable. Set `PYTHON`
+when the Python executable is not on `PATH`. The **aeneas Repo** field should
+point to the repository root when running from source. FFmpeg is resolved from
+the system or the configured bundled backend; MFA remains optional unless the
+MFA alignment engine is selected.
+
+
 ## Goal
 
 **aeneas** automatically generates a **synchronization map**
