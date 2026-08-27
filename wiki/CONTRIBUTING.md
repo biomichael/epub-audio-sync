@@ -1,69 +1,34 @@
-# Code Contribution Guide
+# Development Guide
 
-If you are able to contribute code directly, that is awesome!
+This repository contains the EPUB Audio Sync Builder desktop application and its
+Python alignment backend.
 
-I will be glad to merge it!
-Just a few rules, to make life easier for both you and me:
+## Before changing code
 
-1. Respect the branch policy explained below.
+- Keep the Electron renderer and Python backend payload contracts compatible.
+- Preserve the existing EPUB inspection, alignment, preview, and export flows.
+- Keep renderer-only UI state out of backend build payloads.
+- Test changes with a small EPUB and representative audio files.
 
-2. Respect the code style guide detailed below.
+## Main areas
 
-3. Add unit tests for the code you are submitting,
-   either adding them to the existing unit tests
-   or creating a new file
-   in `aeneas/tests/`.
+- `electron/`: Electron process, preload bridge, and desktop UI.
+- `aeneas/epubsync/`: EPUB inspection, alignment, preview, and export logic.
+- `tests/`: Existing automated tests.
+- `build.ps1` and packaging scripts: Windows build and distribution helpers.
 
-4. **By opening a pull request,
-   you automatically agree to apply
-   the AGPL v3 license
-   to the code you contribute.**
+## Verification
 
-
-## Branch Policy
-
-At all times:
-
-* the `master` branch holds the latest stable version of **aeneas**;
-* the `devel` branch holds the latest development version.
-
-Once the code on the `devel` branch is ready to be released,
-its content will be pushed to the `master` branch,
-and to PyPI and other downstream channels.
-
-Do **not** fork and edit the `master` branch.
-Instead, fork the `devel` branch and always submit pull requests
-to the `devel` branch.
-
-**Pull requests submitted against the `master` branch
-will not be merged, and the submitter will be asked
-to submit a new one against the `devel` branch.**
-
-This policy guarantees that the code on the `master` branch
-is stable and vetted at all times.
-
-
-## Code Style Guide
-
-The existing code base style follows
-[PEP 8](https://www.python.org/dev/peps/pep-0008/),
-please make your contribution adhere to it as well.
-
-Install ``pep8`` (``pip install pep8``) and
-strictly check any Python source code with it:
+For UI changes:
 
 ```bash
-$ pep8 srcfile.py
+node --check electron/renderer/renderer.js
+npm start
 ```
 
-The only exception is that you can ignore error ``E501``
-(aka "line longer than 79 characters"):
+For Python changes, run the relevant tests and verify a complete build in both
+embedded-audio and external-audio modes.
 
-```bash
-$ pep8 --ignore=E501 srcfile.py
-```
-
-See also the
-[Google Python Style Guide](https://google.github.io/styleguide/pyguide.html)
-for further details.
+The repository includes Aeneas-derived code. Preserve the applicable license
+and source notices in `LICENSE` and source files.
 
