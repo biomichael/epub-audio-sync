@@ -9,6 +9,7 @@ const state = {
   preview: null,
   logs: [],
   segmentPicker: null,
+  assignmentPlayer: { openIndex: null, audio: null, sourcePath: "" },
 };
 const SEGMENT_SELECTOR = '[data-epubsync-segment="1"]';
 
@@ -90,8 +91,10 @@ function defaultAssignment(chapterHref, index) {
     audio: "",
     startChapter: chapterHref,
     startSegment: 1,
+    startSegmentSource: "default",
     endChapter: chapterHref,
     endSegment: "",
+    endSegmentSource: "default",
   };
 }
 
@@ -100,6 +103,66 @@ function formatSegmentLabel(value) {
     return "chapter start/end";
   }
   return `segment ${value}`;
+}
+function formatBoundaryLabel(value, source) {
+  const point = value ? `segment ${value}` : "chapter end";
+  const sourceLabel = source === "auto" ? "auto-detected" : source === "manual" ? "manually picked" : "default";
+  return `${point} · ${sourceLabel}`;
+}
+function fileUrl(filePath) { return `file:///${filePath.replaceAll("\\", "/")}`; }
+function formatTime(seconds) {
+  if (!Number.isFinite(seconds)) return "0:00";
+  const total = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+function ensureAssignmentPlayer() {
+  if (state.assignmentPlayer.audio) return state.assignmentPlayer.audio;
+  const audio = new Audio();
+  audio.preload = "metadata";
+  ["timeupdate", "loadedmetadata", "ended"].forEach((name) => audio.addEventListener(name, updateAssignmentPlayerUi));
+  state.assignmentPlayer.audio = audio;
+  return audio;
+}
+function setAssignmentPlayerSource(index) {
+  const assignment = state.assignments[index];
+  const audio = ensureAssignmentPlayer();
+  if (!assignment || !assignment.audio) { audio.pause(); audio.removeAttribute("src"); state.assignmentPlayer.sourcePath = ""; return; }
+  if (state.assignmentPlayer.sourcePath !== assignment.audio) {
+    audio.pause(); audio.src = fileUrl(assignment.audio); state.assignmentPlayer.sourcePath = assignment.audio; audio.load();
+  }
+}
+function updateAssignmentPlayerUi() {
+  const index = state.assignmentPlayer.openIndex;
+  if (index === null) return;
+  const audio = ensureAssignmentPlayer();
+  const seek = document.querySelector(`[data-assignment-seek="${index}"]`);
+  const time = document.querySelector(`[data-assignment-time="${index}"]`);
+  const play = document.querySelector(`[data-assignment-preview="${index}"]`);
+  if (seek) { seek.max = String(Number.isFinite(audio.duration) ? audio.duration : 0); seek.value = String(audio.currentTime || 0); }
+  if (time) time.textContent = `${formatTime(audio.currentTime)} / ${formatTime(audio.duration)}`;
+  if (play) {
+    play.textContent = audio.paused ? "\\u25b6" : "\\u23f8";
+    play.setAttribute("aria-label", audio.paused ? "Play assignment audio" : "Pause assignment audio");
+    play.classList.toggle("is-playing", !audio.paused);
+  }
+  if (play) play.textContent = audio.paused ? "▶ Play" : "⏸ Pause";
+}
+function toggleAssignmentPlayer(index) {
+  syncAssignmentStateFromDom();
+  const audio = ensureAssignmentPlayer();
+  if (!state.assignments[index]?.audio) { showWarning("Select an audio file before opening the assignment preview."); return; }
+  setAssignmentPlayerSource(index);
+  if (state.assignmentPlayer.openIndex !== index) {
+    state.assignmentPlayer.openIndex = index;
+    renderAssignments();
+    audio.currentTime = 0;
+    audio.play().catch((error) => appendLog(`Assignment preview could not play: ${error.message || error}`));
+  } else if (audio.paused) {
+    audio.play().catch((error) => appendLog(`Assignment preview could not play: ${error.message || error}`));
+  } else {
+    audio.pause();
+  }
+  updateAssignmentPlayerUi();
 }
 
 function initializeChapterState() {
@@ -173,9 +236,15 @@ function renderAssignments() {
   body.innerHTML = state.assignments.map((assignment, index) => `
     <tr>
       <td>
+        <div class="assignment-audio-control">
+          <div class="assignment-audio-row">
         <select data-assignment-index="${index}" data-kind="audio">
           ${audioOptionsHtml(assignment.audio)}
         </select>
+        <button class="button button-subtle assignment-preview-button" data-assignment-preview="${index}" ${assignment.audio ? "" : "disabled"} title="Preview this assignment's audio">▶ Preview</button>
+        ${state.assignmentPlayer.openIndex === index ? `<div class="assignment-player"><button class="button button-subtle" data-assignment-play="${index}">▶ Play</button><input type="range" min="0" max="0" step="0.01" value="0" data-assignment-seek="${index}" aria-label="Seek assignment audio"><span class="assignment-time" data-assignment-time="${index}">0:00 / 0:00</span></div>` : ""}
+        </div>
+        ${state.assignmentPlayer.openIndex === index ? `<button class="assignment-player-close" data-assignment-player-close="${index}" aria-label="Hide assignment player" title="Hide player">&#10005;</button>` : ""}
       </td>
       <td>
         <select data-assignment-index="${index}" data-kind="startChapter">
@@ -185,9 +254,9 @@ function renderAssignments() {
       <td>
         <div class="segment-cell">
           <input data-assignment-index="${index}" data-kind="startSegment" type="number" min="1" value="${escapeHtml(assignment.startSegment || 1)}">
-          <button class="button button-subtle" data-pick-segment="${index}" data-pick-kind="startSegment">Pick</button>
+          <button class="button button-subtle" data-pick-segment="${index}" data-pick-kind="startSegment" title="Pick the start alignment point">Pick start</button>
         </div>
-        <div class="segment-readout">${escapeHtml(formatSegmentLabel(assignment.startSegment || 1))}</div>
+        <div class="segment-readout">${escapeHtml(formatBoundaryLabel(assignment.startSegment || 1, assignment.startSegmentSource))}</div>
       </td>
       <td>
         <button class="button button-subtle button-find-sync" data-find-sync="${index}" title="Auto-detect start and end segments from audio">Find Sync</button>
@@ -200,9 +269,9 @@ function renderAssignments() {
       <td>
         <div class="segment-cell">
           <input data-assignment-index="${index}" data-kind="endSegment" type="number" min="1" value="${escapeHtml(assignment.endSegment || "")}" placeholder="chapter end">
-          <button class="button button-subtle" data-pick-segment="${index}" data-pick-kind="endSegment">Pick</button>
+          <button class="button button-subtle" data-pick-segment="${index}" data-pick-kind="endSegment" title="Pick the end alignment point">Pick end</button>
         </div>
-        <div class="segment-readout">${escapeHtml(formatSegmentLabel(assignment.endSegment || ""))}</div>
+        <div class="segment-readout">${escapeHtml(formatBoundaryLabel(assignment.endSegment || "", assignment.endSegmentSource))}</div>
       </td>
       <td><button class="button button-subtle" data-remove-assignment="${index}">Remove</button></td>
     </tr>
@@ -222,8 +291,10 @@ function syncAssignmentStateFromDom() {
     audio: document.querySelector(`[data-assignment-index="${index}"][data-kind="audio"]`)?.value || "",
     startChapter: document.querySelector(`[data-assignment-index="${index}"][data-kind="startChapter"]`)?.value || assignment.startChapter,
     startSegment: Number(document.querySelector(`[data-assignment-index="${index}"][data-kind="startSegment"]`)?.value || "1"),
+    startSegmentSource: assignment.startSegmentSource || "default",
     endChapter: document.querySelector(`[data-assignment-index="${index}"][data-kind="endChapter"]`)?.value || assignment.endChapter,
     endSegment: document.querySelector(`[data-assignment-index="${index}"][data-kind="endSegment"]`)?.value || "",
+    endSegmentSource: assignment.endSegmentSource || "default",
   }));
 }
 
@@ -496,7 +567,7 @@ async function runBuild() {
   try {
     const payload = Object.assign(getPayloadBase(), {
       chapters: state.chapterConfigs,
-      assignments: state.assignments,
+      assignments: state.assignments.map(({ id, audio, startChapter, startSegment, endChapter, endSegment }) => ({ id, audio, startChapter, startSegment, endChapter, endSegment })),
     });
     const response = await window.desktopBridge.runBuild(payload);
     state.result = response.result;
@@ -557,6 +628,7 @@ async function openSegmentPicker(assignmentIndex, fieldKind) {
   syncAssignmentStateFromDom();
   const assignment = state.assignments[assignmentIndex];
   const chapterRootHref = fieldKind === "startSegment" ? assignment.startChapter : assignment.endChapter;
+  const assignmentValue = assignment[fieldKind];
   const pickerMeta = `${chapterRootHref} • click a highlighted segment to set ${fieldKind === "startSegment" ? "the start point" : "the end point"}.`;
   let preview = null;
   let segments = null;
@@ -580,9 +652,16 @@ async function openSegmentPicker(assignmentIndex, fieldKind) {
     segments = buildFallbackPickerSegments($("segmentPickerPane"));
   }
   state.segmentPicker = { assignmentIndex, fieldKind, chapterRootHref, preview, segments };
-  $("segmentPickerMeta").textContent = pickerMeta;
+  $("segmentPickerMeta").textContent = `${chapterRootHref} · setting ${fieldKind === "startSegment" ? "start" : "end"} point${assignmentValue ? ` · currently segment ${assignmentValue}` : " · not selected"}. Click a segment below.`;
+  const currentSegmentIndex = Number(assignmentValue || 0);
+  const pickerNodes = $("segmentPickerPane").querySelectorAll(SEGMENT_SELECTOR).length > 0 ? $("segmentPickerPane").querySelectorAll(SEGMENT_SELECTOR) : $("segmentPickerPane").querySelectorAll("[id]");
+  pickerNodes.forEach((node) => {
+    const segment = segments.find((candidate) => candidate.textId === node.id);
+    if (segment && segment.segmentIndex === currentSegmentIndex) node.classList.add(fieldKind === "startSegment" ? "picker-start-boundary" : "picker-end-boundary");
+  });
   bindPickerTargets($("segmentPickerPane"), segments, (segment) => {
     state.assignments[assignmentIndex][fieldKind] = segment.segmentIndex;
+    state.assignments[assignmentIndex][`${fieldKind}Source`] = "manual";
     renderAssignments();
     closeSegmentPicker();
   });
@@ -646,9 +725,11 @@ async function handleFindSync(assignmentIndex) {
     ]);
     if (result.startSegment) {
       state.assignments[assignmentIndex].startSegment = result.startSegment;
+      state.assignments[assignmentIndex].startSegmentSource = "auto";
     }
     if (result.endSegment) {
       state.assignments[assignmentIndex].endSegment = result.endSegment;
+      state.assignments[assignmentIndex].endSegmentSource = "auto";
     }
     renderAssignments();
     if (result.confidence === "low") {
@@ -665,6 +746,17 @@ async function handleFindSync(assignmentIndex) {
 }
 
 function handleTableClicks(event) {
+  const closeIndex = event.target.closest("[data-assignment-player-close]")?.getAttribute("data-assignment-player-close");
+  if (closeIndex !== undefined) {
+    ensureAssignmentPlayer().pause();
+    state.assignmentPlayer.openIndex = null;
+    renderAssignments();
+    return;
+  }
+  const previewIndex = event.target.closest("[data-assignment-preview]")?.getAttribute("data-assignment-preview");
+  if (previewIndex !== undefined) { toggleAssignmentPlayer(Number(previewIndex)); return; }
+  const playIndex = event.target.getAttribute("data-assignment-play");
+  if (playIndex !== null) { toggleAssignmentPlayback(Number(playIndex)); return; }
   const pickIndex = event.target.getAttribute("data-pick-segment");
   if (pickIndex !== null) {
     openSegmentPicker(Number(pickIndex), event.target.getAttribute("data-pick-kind"));
@@ -683,6 +775,22 @@ function handleTableClicks(event) {
   state.assignments.splice(Number(removeIndex), 1);
   renderAssignments();
 }
+function handleTableChanges(event) {
+  const index = event.target.getAttribute("data-assignment-index");
+  const kind = event.target.getAttribute("data-kind");
+  if (index === null) return;
+  if (kind === "audio") {
+    syncAssignmentStateFromDom();
+    if (state.assignmentPlayer.openIndex === Number(index)) {
+      setAssignmentPlayerSource(Number(index));
+    }
+    renderAssignments();
+    updateAssignmentPlayerUi();
+    return;
+  }
+  if (!["startSegment", "endSegment"].includes(kind)) return;
+  syncAssignmentStateFromDom(); state.assignments[Number(index)][`${kind}Source`] = "manual"; renderAssignments();
+}
 
 function initEvents() {
   $("inspectButton").addEventListener("click", inspectEpub);
@@ -699,6 +807,10 @@ function initEvents() {
   });
   $("errorPopupClose").addEventListener("click", closeErrorPopup);
   $("assignmentBody").addEventListener("click", handleTableClicks);
+  $("assignmentBody").addEventListener("change", handleTableChanges);
+  $("assignmentBody").addEventListener("input", (event) => {
+    if (event.target.getAttribute("data-assignment-seek") !== null) ensureAssignmentPlayer().currentTime = Number(event.target.value);
+  });
 
   window.desktopBridge.onMenuEpubSelected((filePath) => {
     state.epub = filePath;
